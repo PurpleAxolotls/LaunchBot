@@ -113,8 +113,8 @@ public class recordVelocity extends OpMode {
     public void loop() {
 
         if (Math.abs(flyWheelTargetVelocity - leftFlyWheel.getVelocity()) > 20) {
-            light1.setPosition(.25);
-        } else {light1.setPosition(1);}
+            light1.setPosition(.277);
+        } else {light1.setPosition(.444);}
 
 
         if (gamepad1.a && !a_pressed_previous) {

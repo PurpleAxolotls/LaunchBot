@@ -186,15 +186,7 @@ public class singlePersonDrive extends OpMode {
             flyWheelDesiredRPM = fallbackRPM;
         }
 
-        if ((gamepad1.dpad_up && !dpad_up_pressed_previous)) {
-            fallbackRPM += 100;
-        }
-        dpad_up_pressed_previous = gamepad1.dpad_up;
 
-        if (gamepad1.dpad_down && !dpad_down_pressed_previous) {
-            fallbackRPM -= 100;
-        }
-        dpad_down_pressed_previous = gamepad1.dpad_down;
 
         double flyWheelTargetVelocity = (flyWheelDesiredRPM / 60) * flywheelTPR;
 
