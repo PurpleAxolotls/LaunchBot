@@ -101,8 +101,8 @@ public class singlePersonDrive extends OpMode {
     @Override
     public void loop() {
 
-        light1.setPosition(0.5);
-        light2.setPosition(0.75);
+        light1.setPosition(0.722);
+        light2.setPosition(0.722);
 
 
         if (gamepad1.a && !a_pressed_previous) {
