@@ -7,7 +7,7 @@
  */
 
 package org.firstinspires.ftc.teamcode;
-import com.pedropathing.paths.HeadingInterpolator;
+import com.bylazar.configurables.annotations.Configurable;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.CRServo;
@@ -15,28 +15,29 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.acmerobotics.dashboard.FtcDashboard;
+import com.acmerobotics.dashboard.config.Config;
+import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
+
+
 
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 
-import com.pedropathing.follower.Follower;
-import com.pedropathing.geometry.BezierLine;
-import com.pedropathing.geometry.Pose;
-import com.pedropathing.paths.PathChain;
-import com.pedropathing.util.Timer;
-import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
+@Configurable
+@TeleOp(name="recordVelocity")
+public class recordVelocity extends OpMode {
 
+    static double flyWheelTargetVelocity = 0;
 
+    FtcDashboard dashboard = FtcDashboard.getInstance(); // Add this line
 
-
-@TeleOp(name="compBotV4")
-public class compBotV4 extends OpMode {
+    FlyWheelPID control = new FlyWheelPID(0.05,0,0);
 
     boolean dpad_up_pressed_previous = false;
     boolean dpad_down_pressed_previous = false;
     boolean a_pressed_previous = false;
-    boolean x_pressed_previous = false;
 
     CRServo lowerLeftChamber = null;
     CRServo lowerRightChamber = null;
@@ -66,11 +67,7 @@ public class compBotV4 extends OpMode {
     double flywheelTPR = 28;
 
     Servo gate = null;
-
-    AprilTagProcessor aprilTag = null;
-    VisionPortal visionPortal = null;
-
-    private Follower follower;
+    Servo light1 = null;
 
     @Override
     public void init() {
@@ -84,7 +81,9 @@ public class compBotV4 extends OpMode {
 
         // Intake
         intake = hardwareMap.get(DcMotor.class, "intake");
-        intake.setDirection(DcMotor.Direction.FORWARD);
+        intake.setDirection(CRServo.Direction.FORWARD);
+
+        light1 = hardwareMap.get(Servo.class, "light1");
 
         // Wheels
         leftFront = hardwareMap.get(DcMotor.class, "leftFront");
@@ -103,78 +102,46 @@ public class compBotV4 extends OpMode {
 
         leftFlyWheel.setDirection(DcMotorSimple.Direction.REVERSE);
         rightFlyWheel.setDirection(DcMotorSimple.Direction.FORWARD);
-        rightFlyWheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        leftFlyWheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
         //Gate
         gate = hardwareMap.get(Servo.class, "gate");
-
-        // Vision
-        aprilTag = new AprilTagProcessor.Builder()
-                .build();
-
-        visionPortal = new VisionPortal.Builder()
-                .setCamera(hardwareMap.get(WebcamName.class, "Webcam 1"))
-                .addProcessor(aprilTag)
-                .build();
-
-        follower = Constants.createFollower(hardwareMap);
-        follower.setStartingPose(new Pose(0,0,90)); //set your starting pose
-
     }
 
     double fallbackRPM = 2000;
 
-    boolean locked = false;
-
-    @Override
-    public void start() {
-        follower.startTeleopDrive();
-    }
-
     @Override
     public void loop() {
 
-        follower.update();
+        if (Math.abs(flyWheelTargetVelocity - leftFlyWheel.getVelocity()) > 20) {
+            light1.setPosition(.25);
+        } else {light1.setPosition(1);}
 
-        if (gamepad2.a && !a_pressed_previous) {
+
+        if (gamepad1.a && !a_pressed_previous) {
             gateLogic();
         }
-        a_pressed_previous = gamepad2.a;
+        a_pressed_previous = gamepad1.a;
 
-        if (!locked) {
-            follower.setTeleOpDrive(
-                    -gamepad1.left_stick_y,
-                    -gamepad1.left_stick_x,
-                    -gamepad1.right_stick_x,
-                    true);
-        }
-
-        if (gamepad1.x && !x_pressed_previous) {
-            locked = !locked;
-            if (!locked) {
-                follower.startTeleopDrive();
-            } else {
-                follower.followPath(
-                        follower.pathBuilder()
-                                .addPath(new BezierLine(follower.getPose(), follower.getPose() ))
-                                .setConstantHeadingInterpolation(follower.getHeading())
-                                .build());
-            }
-        }
-        x_pressed_previous = gamepad1.x; // Update for the next loop
-
-
-
+        wheelLogic();
         flyWheelLogic();
         chamberLogic();
         intake.setPower(-1);
 
+        TelemetryPacket packet = new TelemetryPacket();
+
+        // Add data to the packet for FTC Dashboard
+        packet.put("Target RPM", flyWheelDesiredRPM);
+        packet.put("Actual RPM Left", (leftFlyWheel.getVelocity() * 60) / flywheelTPR);
+        packet.put("Actual RPM Right", (rightFlyWheel.getVelocity() * 60) / flywheelTPR);
+        packet.put("current velocity",leftFlyWheel.getVelocity());
+        packet.put("target velocity", flyWheelTargetVelocity);
+
+        // Send the packet to the dashboard
+        dashboard.sendTelemetryPacket(packet);
+
         telemetry.addData("Target RPM", flyWheelDesiredRPM);
         telemetry.addData("Actual RPM Left", "%.2f", (leftFlyWheel.getVelocity() * 60) / flywheelTPR);
         telemetry.addData("Actual RPM Right", "%.2f", (rightFlyWheel.getVelocity() * 60) / flywheelTPR);
-        telemetry.update();
-
     }
 
     // Methods
@@ -250,10 +217,9 @@ public class compBotV4 extends OpMode {
         }
         dpad_down_pressed_previous = gamepad2.dpad_down;
 
-        double flyWheelTargetVelocity = (flyWheelDesiredRPM / 60) * flywheelTPR;
 
-        leftFlyWheel.setVelocity(flyWheelTargetVelocity);
-        rightFlyWheel.setVelocity(flyWheelTargetVelocity);
+    leftFlyWheel.setVelocity(flyWheelTargetVelocity);
+    rightFlyWheel.setVelocity(flyWheelTargetVelocity);
 
     }
     public void gateLogic() {
@@ -264,69 +230,6 @@ public class compBotV4 extends OpMode {
             gate.setPosition(1);
             specialChamber.setPower(-1);
         }
-    }
-
-    private void initAprilTag() {
-
-        // Create the AprilTag processor.
-        aprilTag = new AprilTagProcessor.Builder()
-
-                // The following default settings are available to un-comment and edit as needed.
-                //.setDrawAxes(false)
-                //.setDrawCubeProjection(false)
-                //.setDrawTagOutline(true)
-                //.setTagFamily(AprilTagProcessor.TagFamily.TAG_36h11)
-                //.setTagLibrary(AprilTagGameDatabase.getCenterStageTagLibrary())
-                //.setOutputUnits(DistanceUnit.INCH, AngleUnit.DEGREES)
-
-
-                // == CAMERA CALIBRATION ==
-                // If you do not manually specify calibration parameters, the SDK will attempt
-                // to load a predefined calibration for your camera.
-                //.setLensIntrinsics(578.272, 578.272, 402.145, 221.506)
-                // ... these parameters are fx, fy, cx, cy.
-
-                .build();
-
-        // Adjust Image Decimation to trade-off detection-range for detection-rate.
-        // eg: Some typical detection data using a Logitech C920 WebCam
-        // Decimation = 1 ..  Detect 2" Tag from 10 feet away at 10 Frames per second
-        // Decimation = 2 ..  Detect 2" Tag from 6  feet away at 22 Frames per second
-        // Decimation = 3 ..  Detect 2" Tag from 4  feet away at 30 Frames Per Second (default)
-        // Decimation = 3 ..  Detect 5" Tag from 10 feet away at 30 Frames Per Second (default)
-        // Note: Decimation can be changed on-the-fly to adapt during a match.
-        //aprilTag.setDecimation(3);
-
-        // Create the vision portal by using a builder.
-        VisionPortal.Builder builder = new VisionPortal.Builder();
-
-        // Set the camera (webcam vs. built-in RC phone camera).
-
-        builder.setCamera(hardwareMap.get(WebcamName.class, "Webcam 1"));
-
-        // Choose a camera resolution. Not all cameras support all resolutions.
-        //builder.setCameraResolution(new Size(640, 480));
-
-        // Enable the RC preview (LiveView).  Set "false" to omit camera monitoring.
-        //builder.enableLiveView(true);
-
-        // Set the stream format; MJPEG uses less bandwidth than default YUY2.
-        //builder.setStreamFormat(VisionPortal.StreamFormat.YUY2);
-
-        // Choose whether or not LiveView stops if no processors are enabled.
-        // If set "true", monitor shows solid orange screen if no processors enabled.
-        // If set "false", monitor shows camera view without annotations.
-        //builder.setAutoStopLiveView(false);
-
-        // Set and enable the processor.
-        builder.addProcessor(aprilTag);
-
-        // Build the Vision Portal, using the above settings.
-        visionPortal = builder.build();
-
-        // Disable or re-enable the aprilTag processor at any time.
-        //visionPortal.setProcessorEnabled(aprilTag, true);
-
     }
 
 }

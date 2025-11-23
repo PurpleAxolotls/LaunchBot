@@ -45,7 +45,7 @@ public class PIDTuningOpMode extends OpMode {
     CRServo upperRightChamber = null;
     CRServo specialChamber = null;
 
-    CRServo intake = null;
+    DcMotor intake = null;
 
     DcMotor leftFront = null;
     DcMotor leftBack = null;
@@ -79,7 +79,7 @@ public class PIDTuningOpMode extends OpMode {
         specialChamber = hardwareMap.get(CRServo.class, "specialChamber");
 
         // Intake
-        intake = hardwareMap.get(CRServo.class, "intake");
+        intake = hardwareMap.get(DcMotor.class, "intake");
         intake.setDirection(CRServo.Direction.FORWARD);
 
         // Wheels
@@ -119,7 +119,7 @@ public class PIDTuningOpMode extends OpMode {
         wheelLogic();
         flyWheelLogic();
         chamberLogic();
-        intake.setPower(1);
+        intake.setPower(-1);
 
         TelemetryPacket packet = new TelemetryPacket();
 

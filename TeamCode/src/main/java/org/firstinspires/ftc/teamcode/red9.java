@@ -52,7 +52,7 @@ public class red9 extends OpMode {
     double refX = 56;
     double endX = 22;
 
-    Pose StartPos = new Pose(refX, ((17.75 / 2) + 4), Math.toRadians(90));
+    Pose StartPos = new Pose(refX, ((17.75/2)), Math.toRadians(90));
     Pose ShootPos = new Pose(refX, 87, Math.toRadians(135));
 
     Pose startPickUp1 = new Pose(refX, 84, Math.toRadians(0));
@@ -132,7 +132,7 @@ public class red9 extends OpMode {
                 setPathState(0);
                 break;
             case 0:
-                follower.followPath(Path1, 1, true);
+                follower.followPath(Path1);
                 setPathState(2);
                 break;
             case 2:
@@ -142,7 +142,6 @@ public class red9 extends OpMode {
                 break;
 
             case 3:
-
                 if (!follower.isBusy()) {
                     follower.followPath(Path2);
                     setPathState(4);
@@ -159,6 +158,7 @@ public class red9 extends OpMode {
             case 5:
                 if (!follower.isBusy()) {
                     follower.followPath(Path4);
+                    setPathState(6);
                 }
 
                 break;
@@ -168,8 +168,10 @@ public class red9 extends OpMode {
                 }
                 break;
             case 7:
-                follower.followPath(Path5);
-                setPathState(8);
+                if (!follower.isBusy()) {
+                    follower.followPath(Path5);
+                    setPathState(8);
+                }
                 break;
             case 8:
                 if (!follower.isBusy()) {

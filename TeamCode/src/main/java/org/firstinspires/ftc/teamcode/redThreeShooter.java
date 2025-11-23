@@ -203,6 +203,7 @@ public class redThreeShooter extends OpMode {
     public void start() {
         opmodeTimer.resetTimer();
         setPathState(-1);
+
     }
 
     /**
