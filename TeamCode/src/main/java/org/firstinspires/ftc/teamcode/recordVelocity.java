@@ -112,7 +112,7 @@ public class recordVelocity extends OpMode {
     @Override
     public void loop() {
 
-        if (Math.abs(flyWheelTargetVelocity - leftFlyWheel.getVelocity()) > 20) {
+        if (Math.abs(flyWheelTargetVelocity - leftFlyWheel.getVelocity()) > 21) {
             light1.setPosition(.277);
         } else {light1.setPosition(.444);}
 

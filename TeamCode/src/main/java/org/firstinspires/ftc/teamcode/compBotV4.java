@@ -7,6 +7,10 @@
  */
 
 package org.firstinspires.ftc.teamcode;
+import com.pedropathing.ftc.FTCCoordinates;
+import com.pedropathing.ftc.InvertedFTCCoordinates;
+import com.pedropathing.ftc.PoseConverter;
+import com.pedropathing.geometry.PedroCoordinates;
 import com.pedropathing.paths.HeadingInterpolator;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
@@ -17,7 +21,13 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+import org.firstinspires.ftc.robotcore.external.navigation.Position;
+import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 import org.firstinspires.ftc.vision.VisionPortal;
+import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 
 import com.pedropathing.follower.Follower;
@@ -27,16 +37,12 @@ import com.pedropathing.paths.PathChain;
 import com.pedropathing.util.Timer;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
-
+import java.util.ArrayList;
+import java.util.List;
 
 
 @TeleOp(name="compBotV4")
 public class compBotV4 extends OpMode {
-
-    boolean dpad_up_pressed_previous = false;
-    boolean dpad_down_pressed_previous = false;
-    boolean a_pressed_previous = false;
-    boolean x_pressed_previous = false;
 
     CRServo lowerLeftChamber = null;
     CRServo lowerRightChamber = null;
@@ -67,8 +73,19 @@ public class compBotV4 extends OpMode {
 
     Servo gate = null;
 
+    boolean dpad_up_pressed_previous = false;
+    boolean dpad_down_pressed_previous = false;
+    boolean a_pressed_previous = false;
+    boolean x_pressed_previous = false;
+    boolean y_pressed_previous = false;
+    double fallbackRPM = 2000;
+    boolean locked = false;
     AprilTagProcessor aprilTag = null;
     VisionPortal visionPortal = null;
+    private static final boolean USE_WEBCAM = true;  // true for webcam, false for phone camera
+    private Position cameraPosition = new Position(DistanceUnit.INCH, 0.5, 2.25, 8.25, 0);
+    private YawPitchRollAngles cameraOrientation = new YawPitchRollAngles(AngleUnit.DEGREES,
+            0, -90, 0, 0);
 
     private Follower follower;
 
@@ -109,27 +126,17 @@ public class compBotV4 extends OpMode {
         //Gate
         gate = hardwareMap.get(Servo.class, "gate");
 
-        // Vision
-        aprilTag = new AprilTagProcessor.Builder()
-                .build();
-
-        visionPortal = new VisionPortal.Builder()
-                .setCamera(hardwareMap.get(WebcamName.class, "Webcam 1"))
-                .addProcessor(aprilTag)
-                .build();
-
         follower = Constants.createFollower(hardwareMap);
-        follower.setStartingPose(new Pose(0,0,90)); //set your starting pose
+
+        initAprilTag();
 
     }
-
-    double fallbackRPM = 2000;
-
-    boolean locked = false;
 
     @Override
     public void start() {
         follower.startTeleopDrive();
+        follower.setStartingPose(new Pose(0,0,90));
+        intake.setPower(-1);
     }
 
     @Override
@@ -155,81 +162,66 @@ public class compBotV4 extends OpMode {
             if (!locked) {
                 follower.startTeleopDrive();
             } else {
-                follower.followPath(
-                        follower.pathBuilder()
-                                .addPath(new BezierLine(follower.getPose(), follower.getPose() ))
-                                .setConstantHeadingInterpolation(follower.getHeading())
-                                .build());
+                follower.holdPoint(new Pose(follower.getPose().getX(),follower.getPose().getY(),45));
             }
         }
-        x_pressed_previous = gamepad1.x; // Update for the next loop
+        x_pressed_previous = gamepad1.x;
 
-
+        if (gamepad1.y && !y_pressed_previous) {
+            follower.setPose(telemetryFirstAprilTag());
+        }
+        y_pressed_previous = gamepad1.y;
 
         flyWheelLogic();
         chamberLogic();
-        intake.setPower(-1);
 
         telemetry.addData("Target RPM", flyWheelDesiredRPM);
         telemetry.addData("Actual RPM Left", "%.2f", (leftFlyWheel.getVelocity() * 60) / flywheelTPR);
         telemetry.addData("Actual RPM Right", "%.2f", (rightFlyWheel.getVelocity() * 60) / flywheelTPR);
+        telemetry.addData("PedroPoint", follower.getPose().toString());
+
         telemetry.update();
 
     }
 
-    // Methods
-    public void wheelLogic() {
+    private void telemetryAprilTag() {
 
-        if (gamepad1.dpad_down) {
-            axial = -.25;
-            lateral = 0;
-            yaw = 0;
-        } else if (gamepad1.dpad_up) {
-            axial = .25;
-            lateral = 0;
-            yaw = 0;
-        } else if (gamepad1.dpad_left) {
-            axial = 0;
-            lateral = -.25;
-            yaw = 0;
-        } else if (gamepad1.dpad_right) {
-            axial = 0;
-            lateral = .25;
-            yaw = 0;
-        } else {
-            axial   = -gamepad1.left_stick_y;
-            lateral =  gamepad1.left_stick_x;
-            yaw     =  gamepad1.right_stick_x;
+        List<AprilTagDetection> currentDetections = aprilTag.getDetections();
+        telemetry.addData("# AprilTags Detected", currentDetections.size());
+
+        // Step through the list of detections and display info for each one.
+        for (AprilTagDetection detection : currentDetections) {
+            if (detection.metadata != null) {
+                telemetry.addLine(String.format("\n==== (ID %d) %s", detection.id, detection.metadata.name));
+                // Only use tags that don't have Obelisk in them
+                if (!detection.metadata.name.contains("Obelisk")) {
+                    telemetry.addLine(String.format("XYZ %6.1f %6.1f %6.1f  (inch)",
+                            detection.robotPose.getPosition().x,
+                            detection.robotPose.getPosition().y,
+                            detection.robotPose.getPosition().z));
+                    telemetry.addLine(String.format("PRY %6.1f %6.1f %6.1f  (deg)",
+                            detection.robotPose.getOrientation().getPitch(AngleUnit.DEGREES),
+                            detection.robotPose.getOrientation().getRoll(AngleUnit.DEGREES),
+                            detection.robotPose.getOrientation().getYaw(AngleUnit.DEGREES)));
+                }
+            } else {
+                telemetry.addLine(String.format("\n==== (ID %d) Unknown", detection.id));
+                telemetry.addLine(String.format("Center %6.0f %6.0f   (pixels)", detection.center.x, detection.center.y));
+            }
         }
 
-        frontLeftPower  = axial + lateral + yaw;
-        frontRightPower = axial - lateral - yaw;
-        backLeftPower   = axial - lateral + yaw;
-        backRightPower  = axial + lateral - yaw;
-
-        max = Math.max(Math.abs(frontLeftPower), Math.abs(frontRightPower));
-        max = Math.max(max, Math.abs(backLeftPower));
-        max = Math.max(max, Math.abs(backRightPower));
-
-        if (max > 1.0) {
-            frontLeftPower  /= max;
-            frontRightPower /= max;
-            backLeftPower   /= max;
-            backRightPower  /= max;
-        }
-
-        leftFront.setPower(frontLeftPower);
-        leftBack.setPower(backLeftPower);
-        rightFront.setPower(frontRightPower);
-        rightBack.setPower(backRightPower);
+        telemetry.addLine("\nkey:\nXYZ = X (Right), Y (Forward), Z (Up) dist.");
+        telemetry.addLine("PRY = Pitch, Roll & Yaw (XYZ Rotation)");
 
     }
+
     public void chamberLogic() {
         lowerLeftChamber.setPower(-1);
         lowerRightChamber.setPower(1);
         upperLeftChamber.setPower(-1);
         upperRightChamber.setPower(1);
     }
+
     public void flyWheelLogic() {
 
         if (gamepad2.left_bumper) {
@@ -256,6 +248,7 @@ public class compBotV4 extends OpMode {
         rightFlyWheel.setVelocity(flyWheelTargetVelocity);
 
     }
+
     public void gateLogic() {
         if(gate.getPosition() == 1) {
             gate.setPosition(0);
@@ -267,65 +260,56 @@ public class compBotV4 extends OpMode {
     }
 
     private void initAprilTag() {
-
-        // Create the AprilTag processor.
         aprilTag = new AprilTagProcessor.Builder()
-
-                // The following default settings are available to un-comment and edit as needed.
-                //.setDrawAxes(false)
-                //.setDrawCubeProjection(false)
-                //.setDrawTagOutline(true)
-                //.setTagFamily(AprilTagProcessor.TagFamily.TAG_36h11)
-                //.setTagLibrary(AprilTagGameDatabase.getCenterStageTagLibrary())
-                //.setOutputUnits(DistanceUnit.INCH, AngleUnit.DEGREES)
-
-
-                // == CAMERA CALIBRATION ==
-                // If you do not manually specify calibration parameters, the SDK will attempt
-                // to load a predefined calibration for your camera.
-                //.setLensIntrinsics(578.272, 578.272, 402.145, 221.506)
-                // ... these parameters are fx, fy, cx, cy.
-
                 .build();
-
-        // Adjust Image Decimation to trade-off detection-range for detection-rate.
-        // eg: Some typical detection data using a Logitech C920 WebCam
-        // Decimation = 1 ..  Detect 2" Tag from 10 feet away at 10 Frames per second
-        // Decimation = 2 ..  Detect 2" Tag from 6  feet away at 22 Frames per second
-        // Decimation = 3 ..  Detect 2" Tag from 4  feet away at 30 Frames Per Second (default)
-        // Decimation = 3 ..  Detect 5" Tag from 10 feet away at 30 Frames Per Second (default)
-        // Note: Decimation can be changed on-the-fly to adapt during a match.
-        //aprilTag.setDecimation(3);
-
-        // Create the vision portal by using a builder.
         VisionPortal.Builder builder = new VisionPortal.Builder();
-
-        // Set the camera (webcam vs. built-in RC phone camera).
-
         builder.setCamera(hardwareMap.get(WebcamName.class, "Webcam 1"));
-
-        // Choose a camera resolution. Not all cameras support all resolutions.
-        //builder.setCameraResolution(new Size(640, 480));
-
-        // Enable the RC preview (LiveView).  Set "false" to omit camera monitoring.
-        //builder.enableLiveView(true);
-
-        // Set the stream format; MJPEG uses less bandwidth than default YUY2.
-        //builder.setStreamFormat(VisionPortal.StreamFormat.YUY2);
-
-        // Choose whether or not LiveView stops if no processors are enabled.
-        // If set "true", monitor shows solid orange screen if no processors enabled.
-        // If set "false", monitor shows camera view without annotations.
-        //builder.setAutoStopLiveView(false);
-
-        // Set and enable the processor.
         builder.addProcessor(aprilTag);
-
-        // Build the Vision Portal, using the above settings.
         visionPortal = builder.build();
+    }
 
-        // Disable or re-enable the aprilTag processor at any time.
-        //visionPortal.setProcessorEnabled(aprilTag, true);
+    private Pose telemetryFirstAprilTag() {
+
+        // Get the current list of AprilTag detections.
+        List<AprilTagDetection> currentDetections = aprilTag.getDetections();
+        // Check if any tags are detected.
+        if (currentDetections.size() > 0) {
+            // Get the first detection from the list.
+            AprilTagDetection detection = currentDetections.get(0);
+            // Check that the tag has valid metadata.
+            if (detection.metadata != null) {
+                telemetry.addLine(String.format("\n=====[ First Detection ID %d ]=====", detection.id));
+                telemetry.addLine(String.format("XYZ %6.2f %6.2f %6.2f  (inch)", detection.ftcPose.x, detection.ftcPose.y, detection.ftcPose.z));
+                telemetry.addLine(String.format("YPR %6.2f %6.2f %6.2f  (deg)", detection.ftcPose.yaw, detection.ftcPose.pitch, detection.ftcPose.roll));
+                telemetry.addLine(String.format("Range %6.2f inches", detection.ftcPose.range));
+                telemetry.addLine(String.format("Bearing %6.2f degrees", detection.ftcPose.bearing));
+
+                //Pose ftcStandard = PoseConverter.pose2DToPose(new Pose2D(DistanceUnit.INCH, detection.ftcPose.x,detection.ftcPose.y, AngleUnit.DEGREES, Math.toRadians(detection.ftcPose.yaw) ), FTCCoordinates.INSTANCE);
+                //return ftcStandard.getAsCoordinateSystem(PedroCoordinates.INSTANCE);
+
+                //Pose cameraToTagPose = new Pose(detection.ftcPose.x,detection.ftcPose.y,detection.ftcPose.yaw, InvertedFTCCoordinates.INSTANCE);
+                //cameraToTagPose = cameraToTagPose.getAsCoordinateSystem(PedroCoordinates.INSTANCE);
+
+                Pose2D CameraPose = new Pose2D(DistanceUnit.INCH,detection.ftcPose.x,detection.ftcPose.y, AngleUnit.RADIANS, Math.toRadians(detection.ftcPose.yaw));
+                Pose pedroPose = PoseConverter.pose2DToPose(CameraPose,InvertedFTCCoordinates.INSTANCE);
+                pedroPose = pedroPose.getAsCoordinateSystem(PedroCoordinates.INSTANCE);
+                return pedroPose;
+
+
+            } else {
+                // This happens if an unknown tag is seen.
+                telemetry.addLine("\n(First detection is an unknown tag)");
+
+                return follower.getPose();
+            }
+        } else {
+            // No tags are currently visible.
+            telemetry.addLine("\nNo AprilTags Detected");
+
+            return follower.getPose();
+        }
+
+
 
     }
 
