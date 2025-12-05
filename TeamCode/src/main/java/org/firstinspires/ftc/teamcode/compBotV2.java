@@ -7,6 +7,7 @@
  */
 
 package org.firstinspires.ftc.teamcode;
+import com.pedropathing.util.Timer;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.CRServo;
@@ -22,11 +23,10 @@ public class compBotV2 extends OpMode {
     boolean dpad_down_pressed_previous = false;
     boolean a_pressed_previous = false;
 
-    CRServo lowerLeftChamber = null;
-    CRServo lowerRightChamber = null;
-    CRServo upperLeftChamber = null;
+    DcMotor chamberMotor = null;
     CRServo upperRightChamber = null;
     CRServo specialChamber = null;
+    CRServo backRightChamber = null;
 
     DcMotor intake = null;
 
@@ -54,15 +54,16 @@ public class compBotV2 extends OpMode {
     Servo light1 = null;
     Servo light2 = null;
 
+    private Timer opModeTimer;
+
     @Override
     public void init() {
 
-        // Chamber Servos
-        lowerLeftChamber = hardwareMap.get(CRServo.class, "backLeftS");
-        lowerRightChamber = hardwareMap.get(CRServo.class, "backRightS");
-        upperLeftChamber = hardwareMap.get(CRServo.class, "frontLeftS");
+        // Chamber
         upperRightChamber = hardwareMap.get(CRServo.class, "frontRightS");
         specialChamber = hardwareMap.get(CRServo.class, "specialChamber");
+        chamberMotor = hardwareMap.get(DcMotor.class, "chamberMotor");
+        backRightChamber = hardwareMap.get(CRServo.class, "backRightChamber");
 
         // Intake
         intake = hardwareMap.get(DcMotor.class, "intake");
@@ -94,16 +95,19 @@ public class compBotV2 extends OpMode {
         light1 = hardwareMap.get(Servo.class, "light1");
         light2 = hardwareMap.get(Servo.class, "light2");
 
+        opModeTimer = new Timer();
+
     }
 
     double fallbackRPM = 2000;
 
+    public void start() {
+        light2.setPosition(1);
+        opModeTimer.resetTimer();
+    }
+
     @Override
     public void loop() {
-
-        light1.setPosition(0.5);
-        light2.setPosition(0.75);
-
 
         if (gamepad2.a && !a_pressed_previous) {
             gateLogic();
@@ -113,6 +117,8 @@ public class compBotV2 extends OpMode {
         wheelLogic();
         flyWheelLogic();
         chamberLogic();
+        lightLogic((flyWheelDesiredRPM / 60) * flywheelTPR);
+
         intake.setPower(-1);
 
         telemetry.addData("Target RPM", flyWheelDesiredRPM);
@@ -170,9 +176,8 @@ public class compBotV2 extends OpMode {
 
     }
     public void chamberLogic() {
-        lowerLeftChamber.setPower(-1);
-        lowerRightChamber.setPower(1);
-        upperLeftChamber.setPower(-1);
+        backRightChamber.setPower(1);
+        chamberMotor.setPower(-1);
         upperRightChamber.setPower(1);
     }
 
@@ -209,6 +214,18 @@ public class compBotV2 extends OpMode {
         } else if (gate.getPosition() == 0) {
             gate.setPosition(1);
             specialChamber.setPower(-1);
+        }
+    }
+
+    public void lightLogic(double flyWheelTargetVelocity) {
+        if (Math.abs(flyWheelTargetVelocity - leftFlyWheel.getVelocity()) > 21) {
+            light1.setPosition(.277);
+        } else {light1.setPosition(.444);}
+
+
+        if(opModeTimer.getElapsedTimeSeconds() > 30)
+        {
+            light2.setPosition(.333);
         }
     }
 

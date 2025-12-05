@@ -15,15 +15,15 @@ import com.qualcomm.robotcore.hardware.Servo;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
-@Autonomous(name = "reOrg9BallBlue", group = "Examples")
-public class reOrg6ball extends OpMode {
+@Autonomous(name = "backShotsBlue", group = "Examples")
+public class backShots extends OpMode {
 
     double flyWheelTargetVelocity;
     double flyWheelRPM = 1750;
     double flywheelTPR = 28;
 
     DcMotor chamberMotor = null;
-    CRServo backRightChamber = null;
+    CRServo rightBackChamber = null;
     CRServo upperRightChamber = null;
     CRServo specialChamber = null;
 
@@ -50,73 +50,64 @@ public class reOrg6ball extends OpMode {
     public PathChain Path6;
     public PathChain Path7;
 
-    double refX = 56.5125;
-    double endX = 20;
-
-    Pose StartPos = new Pose(refX, ((17.75/2)), Math.toRadians(90));
-    Pose ShootPos = new Pose(refX, 87, Math.toRadians(135));
-
-    Pose startPickUp1 = new Pose(refX, 84, Math.toRadians(0));
-    Pose startPickUp2 = new Pose(refX, 60, Math.toRadians(0));
-    Pose startPickUp3 = new Pose(refX, 36, Math.toRadians(0));
-
-    Pose endPickup1 = new Pose(endX, 84, Math.toRadians(0));
-    Pose endPickup2 = new Pose(endX, 60, Math.toRadians(0));
-    Pose endPickup3 = new Pose(endX, 36, Math.toRadians(0));
+    double refX = 87.25;
+    Pose StartPos = new Pose(refX, 9, Math.toRadians(90));
 
     public void Paths(Follower follower) {
         Path1 = follower
                 .pathBuilder()
                 .addPath(
-                        new BezierLine(StartPos, ShootPos)
+                        new BezierLine(new Pose(87.250, 9.000), new Pose(87.250, 12.000))
                 )
-                .setLinearHeadingInterpolation(StartPos.getHeading(), ShootPos.getHeading())
+                .setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(75))
                 .build();
 
         Path2 = follower
                 .pathBuilder()
                 .addPath(
-                        new BezierLine(ShootPos, startPickUp1)
+                        new BezierLine(new Pose(87.250, 12.000), new Pose(100.000, 36.000))
                 )
-                .setLinearHeadingInterpolation(ShootPos.getHeading(), startPickUp1.getHeading())
+                .setLinearHeadingInterpolation(Math.toRadians(75), Math.toRadians(180))
                 .build();
 
         Path3 = follower
                 .pathBuilder()
                 .addPath(
-                        new BezierLine(startPickUp1, endPickup1)
+                        new BezierLine(new Pose(100.000, 36.000), new Pose(132.000, 36.000))
                 )
-                .setLinearHeadingInterpolation(startPickUp1.getHeading(), endPickup1.getHeading())
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                 .build();
 
         Path4 = follower
                 .pathBuilder()
                 .addPath(
-                        new BezierLine(endPickup1, ShootPos)
+                        new BezierLine(new Pose(132.000, 36.000), new Pose(87.250, 12.000))
                 )
-                .setLinearHeadingInterpolation(endPickup1.getHeading(), ShootPos.getHeading())
-                .setHeadingConstraint(Math.toRadians(0))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(75))
                 .build();
+
         Path5 = follower
                 .pathBuilder()
                 .addPath(
-                        new BezierLine(ShootPos, startPickUp2)
+                        new BezierLine(new Pose(87.250, 12.000), new Pose(135.125, 30.000))
                 )
-                .setLinearHeadingInterpolation(ShootPos.getHeading(), startPickUp2.getHeading())
+                .setLinearHeadingInterpolation(Math.toRadians(75), Math.toRadians(90))
                 .build();
+
         Path6 = follower
                 .pathBuilder()
                 .addPath(
-                        new BezierLine(startPickUp2, endPickup2)
+                        new BezierLine(new Pose(135.125, 30.000), new Pose(135.125, 9.000))
                 )
-                .setLinearHeadingInterpolation(startPickUp2.getHeading(), endPickup2.getHeading())
+                .setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(90))
                 .build();
+
         Path7 = follower
                 .pathBuilder()
                 .addPath(
-                        new BezierLine(endPickup2, ShootPos)
+                        new BezierLine(new Pose(135.125, 9.000), new Pose(87.250, 12.000))
                 )
-                .setLinearHeadingInterpolation(endPickup2.getHeading(), ShootPos.getHeading())
+                .setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(75))
                 .build();
     }
 
@@ -126,7 +117,7 @@ public class reOrg6ball extends OpMode {
             case -1:
                 gate.setPosition(0);
                 chamberMotor.setPower(-1);
-                backRightChamber.setPower(1);
+                rightBackChamber.setPower(1);
                 upperRightChamber.setPower(1);
                 intake.setPower(1);
                 setPathState(0);
@@ -151,7 +142,7 @@ public class reOrg6ball extends OpMode {
                 break;
             case 4:
                 if (!follower.isBusy()) {
-                    follower.followPath(Path3, 0.45, true);
+                    follower.followPath(Path3, 0.25, true);
                     setPathState(5);
                 }
 
@@ -168,14 +159,14 @@ public class reOrg6ball extends OpMode {
                 }
                 break;
             case 7:
-
+                /*
                 follower.followPath(Path5);
                 setPathState(8);
-
+                */
                 break;
             case 8:
                 if (!follower.isBusy()) {
-                    follower.followPath(Path6, 0.45, true);
+                    follower.followPath(Path6,0.25,true);
                     setPathState(9);
                 }
                 break;
@@ -189,41 +180,26 @@ public class reOrg6ball extends OpMode {
                 if (!follower.isBusy()) {
                     shoot();
                 }
-
-
-            case 98:
-                follower.followPath(
-                        follower.pathBuilder()
-                                .addPath(new BezierLine(follower.getPose(), new Pose(24, 72)))
-                                .setLinearHeadingInterpolation(follower.getHeading(), 90)
-                                .build()
-                );
-                setPathState(99);
-                break;
-            case 99:
-                if (!follower.isBusy()) {
-                    follower.followPath(
-                            follower.pathBuilder()
-                                    .addPath(new BezierLine(new Pose(24, 72), new Pose(12, 72)))
-                                    .setConstantHeadingInterpolation(90)
-                                    .build()
-                    );
-                }
-                break;
         }
 
+        /*
+        if (opmodeTimer.getElapsedTimeSeconds() > 26) {
+            setPathState(98);
+        }
+         */
     }
 
     public void shoot() {
 
-        if (Math.abs(leftFlyWheel.getVelocity() - targetTPS) < 45) {
+        gate.setPosition(1);
+
+        if (Math.abs(leftFlyWheel.getVelocity() - targetTPS) < 25){
             specialChamber.setPower(-1);
         } else {
             specialChamber.setPower(0);
         }
 
-        gate.setPosition(1);
-        if (pathTimer.getElapsedTimeSeconds() > 10) {
+        if (pathTimer.getElapsedTimeSeconds() > 8) {
             setPathState(pathState + 1);
             specialChamber.setPower(0);
             gate.setPosition(0);
@@ -280,7 +256,7 @@ public class reOrg6ball extends OpMode {
         upperRightChamber = hardwareMap.get(CRServo.class, "frontRightS");
         specialChamber = hardwareMap.get(CRServo.class, "specialChamber");
         chamberMotor = hardwareMap.get(DcMotor.class, "chamberMotor");
-        backRightChamber = hardwareMap.get(CRServo.class, "backRightChamber");
+        rightBackChamber = hardwareMap.get(CRServo.class, "backRightChamber");
 
         leftFlyWheel = hardwareMap.get(DcMotorEx.class, "leftflywheel");
         rightFlyWheel = hardwareMap.get(DcMotorEx.class, "rightflywheel");
